@@ -34,4 +34,4 @@ class MyClient(discord.Client):
                     break
 
 client = MyClient()
-client.run('ODk0OTgzNjY0MDEyNzY3MjYz.YVx8fQ.qnRjagKz7TbkzIW8mKnmzYklexI')
+client.run('TOKEN BOT DISCORD')
