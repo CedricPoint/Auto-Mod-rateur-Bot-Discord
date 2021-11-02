@@ -1,10 +1,12 @@
-### Auto-Mod-rateur-Bot-Discord
+# Auto-Mod-rateur-Bot-Discord
 
-### Pré requis :
+Un bot pour modéré facilement vos serveurs discord !
+
+## Pré requis :
 
 Python 3.X
 
-### Installation
+## Installation
 
 1. Crée votre application Discord juste ici : https://discordapp.com/developers/applications/me
 
@@ -12,13 +14,13 @@ Python 3.X
 
 3. Récupéré le token de votre Bot et l'inséré tout en bas du fichier modo.py
 
-### Configuration des mots bannis :
+## Configuration des mots bannis :
 
 Rendez-vous à la ligne 11, dans word list. 
 
 Ici vous pouvez ajouté, une multitude de mots que vous en souhaité pas que les gens disent sur votre serveur !!
 
-### Configuration des fichiers bannis : 
+## Configuration des fichiers bannis : 
 
 Entre la ligne 24 et 31, c'est ici que vous trouverez le code, pour empêché les utilisateurs d'upload des fichiers spécifiques que vous aurez configuré. 
 
