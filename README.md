@@ -1,4 +1,4 @@
-# Auto-Mod-rateur-Bot-Discord
+# Auto Modérateur Bot Discord
 
 Un bot pour modéré facilement vos serveurs discord !
 
