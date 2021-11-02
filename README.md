@@ -2,6 +2,8 @@
 
 Un bot pour modéré facilement vos serveurs discord !
 
+[![forthebadge](https://forthebadge.com/images/badges/open-source.svg)](http://forthebadge.com) [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](http://forthebadge.com)
+
 ## Pré requis :
 
 Python 3.X
