@@ -21,10 +21,24 @@ DEFAULT_CONFIG = {
     "timeout_duration": 3600,  # en secondes
     "status": "Surveille informaclique",
     "welcome_channel_id": None,  # ID du canal de bienvenue
-    "welcome_message": "Bienvenue {member.mention} sur le serveur ! 🎉\nNous sommes maintenant {member_count} membres !",
+    "welcome_message": "Hey {member.mention} ! 👋\nBienvenue sur le serveur ! 🎉\nNous sommes maintenant {member_count} membres !",
     "goodbye_message": "Au revoir {member.name} ! 😢\nNous sommes maintenant {member_count} membres.",
     "auto_reactions": {},  # Format: {"channel_id": ["emoji1", "emoji2", ...]}
-    "auto_reaction_chance": 0.3  # Probabilité de réaction (30%)
+    "auto_reaction_chance": 0.3,  # Probabilité de réaction (30%)
+    "stats_channels": {
+        "members": None,     # ID du salon pour le compteur de membres
+        "bots": None,       # ID du salon pour le compteur de bots
+        "total": None,      # ID du salon pour le total
+        "channels": None,   # ID du salon pour le nombre de salons
+        "roles": None       # ID du salon pour le nombre de rôles
+    },
+    "stats_format": {
+        "members": "👥 Membres : {count}",
+        "bots": "🤖 Bots : {count}",
+        "total": "📊 Total : {count}",
+        "channels": "📝 Salons : {count}",
+        "roles": "🎭 Rôles : {count}"
+    }
 }
 
 def load_config() -> Dict[str, Any]:

@@ -1,0 +1,20 @@
+{
+    "ticket_configs": {},
+    "active_tickets": {},
+    "log_channel_id": null,
+    "ticket_stats": {
+        "total_tickets": 0,
+        "tickets_by_category": {
+            "support": 0,
+            "bug": 0,
+            "commande": 0,
+            "autre": 0
+        },
+        "tickets_by_priority": {
+            "basse": 0,
+            "moyenne": 0,
+            "haute": 0,
+            "urgente": 0
+        }
+    }
+} 

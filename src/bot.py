@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from cogs.moderation import ModerationCog
 from cogs.config import ConfigCog
 from cogs.help import HelpCog
-from utils.config import load_config, save_config
+from cogs.tickets import TicketsCog
+from utils.config import load_config, save_config, DEFAULT_CONFIG
 
 # Configuration du logging
 logging.basicConfig(
@@ -23,6 +24,7 @@ class AutoModBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
+        intents.guilds = True  # Pour avoir accès aux informations du serveur
         
         super().__init__(
             command_prefix='?',
@@ -38,6 +40,7 @@ class AutoModBot(commands.Bot):
         await self.add_cog(ModerationCog(self))
         await self.add_cog(ConfigCog(self))
         await self.add_cog(HelpCog(self))
+        await self.add_cog(TicketsCog(self))
         
         # Synchronisation des commandes slash
         try:

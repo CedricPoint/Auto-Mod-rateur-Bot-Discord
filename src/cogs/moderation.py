@@ -16,7 +16,15 @@ class ModerationCog(commands.Cog):
         if self.config["welcome_channel_id"]:
             welcome_channel = self.bot.get_channel(self.config["welcome_channel_id"])
             if welcome_channel:
-                member_count = len(member.guild.members)
+                # Calcul précis du nombre de membres
+                real_members = len([m for m in member.guild.members if not m.bot])
+                total_members = len(member.guild.members)
+                
+                self.bot.logger.info(f"Arrivée de {member.name}")
+                self.bot.logger.info(f"Nombre total de membres (avec bots): {total_members}")
+                self.bot.logger.info(f"Nombre de membres (sans bots): {real_members}")
+                
+                member_count = real_members
                 welcome_message = self.config["welcome_message"].format(
                     member=member,
                     member_count=member_count
@@ -38,7 +46,16 @@ class ModerationCog(commands.Cog):
         if self.config["welcome_channel_id"]:
             welcome_channel = self.bot.get_channel(self.config["welcome_channel_id"])
             if welcome_channel:
-                member_count = len(member.guild.members)
+                # Calcul précis du nombre de membres
+                real_members = len([m for m in member.guild.members if not m.bot])
+                total_members = len(member.guild.members)
+                
+                self.bot.logger.info(f"Départ de {member.name}")
+                self.bot.logger.info(f"Nombre total de membres (avec bots): {total_members}")
+                self.bot.logger.info(f"Nombre de membres (sans bots): {real_members}")
+                
+                # On soustrait 1 car le membre a déjà quitté
+                member_count = real_members - 1
                 goodbye_message = self.config["goodbye_message"].format(
                     member=member,
                     member_count=member_count
@@ -56,9 +73,6 @@ class ModerationCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
-            return
-
         # Réactions automatiques configurées par salon
         channel_id = str(message.channel.id)
         if channel_id in self.config["auto_reactions"]:
@@ -67,6 +81,10 @@ class ModerationCog(commands.Cog):
                     await message.add_reaction(emoji)
                 except discord.Forbidden:
                     self.bot.logger.error(f"Impossible d'ajouter la réaction {emoji} au message de {message.author}")
+
+        # Ne pas faire la modération sur les messages de bots
+        if message.author.bot:
+            return
 
         # Vérification des mots interdits
         message_content = message.content.lower()
@@ -218,6 +236,77 @@ class ModerationCog(commands.Cog):
             )
         except discord.Forbidden:
             await ctx.send("Je n'ai pas les permissions nécessaires pour supprimer des messages.")
+
+    @commands.command(name="react_history")
+    @commands.has_permissions(administrator=True)
+    async def react_history(self, ctx, channel: discord.TextChannel, limit: int = 100):
+        """Ajoute les réactions configurées aux anciens messages du salon
+        Exemple: ?react_history #salon 100"""
+        channel_id = str(channel.id)
+        if channel_id not in self.config["auto_reactions"]:
+            await ctx.send("❌ Aucune réaction n'est configurée pour ce salon.")
+            return
+
+        if limit > 1000:
+            await ctx.send("❌ La limite maximale est de 1000 messages.")
+            return
+
+        progress_msg = await ctx.send("⏳ Ajout des réactions en cours...")
+        count = 0
+        
+        try:
+            async for message in channel.history(limit=limit):
+                for emoji in self.config["auto_reactions"][channel_id]:
+                    try:
+                        await message.add_reaction(emoji)
+                        count += 1
+                    except discord.Forbidden:
+                        continue
+                    except discord.NotFound:
+                        continue
+        except Exception as e:
+            await progress_msg.edit(content=f"❌ Une erreur est survenue : {str(e)}")
+            return
+
+        embed = discord.Embed(
+            title="✅ Réactions Ajoutées",
+            description=f"J'ai ajouté {count} réactions aux {limit} derniers messages dans {channel.mention}",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text=f"Par {ctx.author}")
+        
+        await progress_msg.delete()
+        await ctx.send(embed=embed)
+
+    @commands.command(name="clearwarns")
+    @commands.has_permissions(administrator=True)
+    async def clearwarns(self, ctx, member: discord.Member):
+        """Supprime tous les avertissements d'un membre"""
+        if member.id in self.warnings:
+            old_count = len(self.warnings[member.id])
+            self.warnings[member.id] = []
+            
+            embed = discord.Embed(
+                title="🗑️ Avertissements Supprimés",
+                description=f"Les avertissements de {member.mention} ont été supprimés.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Avertissements supprimés", value=str(old_count))
+            embed.set_footer(text=f"Par {ctx.author}")
+            
+            await ctx.send(embed=embed)
+            await self._log_action(
+                f"Avertissements supprimés pour {member} (ID: {member.id})\n"
+                f"Nombre d'avertissements supprimés: {old_count}\n"
+                f"Par: {ctx.author}"
+            )
+        else:
+            embed = discord.Embed(
+                title="ℹ️ Information",
+                description=f"{member.mention} n'a aucun avertissement.",
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
 
     async def _log_action(self, message):
         if self.config["log_channel_id"]:

@@ -378,5 +378,327 @@ class ConfigCog(commands.Cog):
         embed.set_footer(text="Auto Mod Bot")
         await ctx.send(embed=embed)
 
+    @commands.command(name="set_stats_channel")
+    @commands.has_permissions(administrator=True)
+    async def set_stats_channel(self, ctx, stat_type: str, channel: discord.VoiceChannel = None):
+        """Configure un salon pour les statistiques
+        Types disponibles: members, bots, total, channels, roles
+        Exemple: ?set_stats_channel members #salon
+        Pour désactiver: ?set_stats_channel members"""
+        
+        valid_types = ["members", "bots", "total", "channels", "roles"]
+        if stat_type not in valid_types:
+            await ctx.send(f"❌ Type invalide. Types disponibles : {', '.join(valid_types)}")
+            return
+            
+        # Si aucun salon n'est spécifié, on désactive le compteur
+        if channel is None:
+            self.config["stats_channels"][stat_type] = None
+            save_config(self.config)
+            await ctx.send(f"✅ Compteur {stat_type} désactivé.")
+            return
+            
+        self.config["stats_channels"][stat_type] = channel.id
+        save_config(self.config)
+        
+        # Mise à jour immédiate du compteur
+        await self._update_stats_channel(stat_type)
+        
+        embed = discord.Embed(
+            title="✅ Compteur Configuré",
+            description=f"Le compteur {stat_type} a été configuré dans le salon {channel.mention}",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text=f"Par {ctx.author}")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="set_stats_format")
+    @commands.has_permissions(administrator=True)
+    async def set_stats_format(self, ctx, stat_type: str, *, format_text: str):
+        """Configure le format d'affichage d'un compteur
+        Types disponibles: members, bots, total, channels, roles
+        Utilisez {count} pour le nombre
+        Exemple: ?set_stats_format members 👥 Membres : {count}"""
+        
+        valid_types = ["members", "bots", "total", "channels", "roles"]
+        if stat_type not in valid_types:
+            await ctx.send(f"❌ Type invalide. Types disponibles : {', '.join(valid_types)}")
+            return
+            
+        if "{count}" not in format_text:
+            await ctx.send("❌ Le format doit contenir {count}")
+            return
+            
+        self.config["stats_format"][stat_type] = format_text
+        save_config(self.config)
+        
+        # Mise à jour immédiate du compteur
+        await self._update_stats_channel(stat_type)
+        
+        embed = discord.Embed(
+            title="✅ Format Configuré",
+            description=f"Le format du compteur {stat_type} a été mis à jour",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Nouveau format", value=f"`{format_text}`")
+        embed.set_footer(text=f"Par {ctx.author}")
+        await ctx.send(embed=embed)
+
+    async def _update_stats_channel(self, stat_type: str):
+        """Met à jour un salon de statistiques"""
+        channel_id = self.config["stats_channels"][stat_type]
+        if not channel_id:
+            return
+            
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            return
+            
+        guild = channel.guild
+        count = 0
+        
+        if stat_type == "members":
+            count = len([m for m in guild.members if not m.bot])
+        elif stat_type == "bots":
+            count = len([m for m in guild.members if m.bot])
+        elif stat_type == "total":
+            count = len(guild.members)
+        elif stat_type == "channels":
+            count = len(guild.channels)
+        elif stat_type == "roles":
+            count = len(guild.roles)
+            
+        new_name = self.config["stats_format"][stat_type].format(count=count)
+        
+        try:
+            await channel.edit(name=new_name)
+        except discord.Forbidden:
+            self.bot.logger.error(f"Impossible de modifier le nom du salon {channel.name}")
+        except discord.HTTPException as e:
+            self.bot.logger.error(f"Erreur lors de la modification du salon {channel.name}: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        """Met à jour les compteurs quand un membre rejoint"""
+        for stat_type in ["members", "bots", "total"]:
+            await self._update_stats_channel(stat_type)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        """Met à jour les compteurs quand un membre part"""
+        for stat_type in ["members", "bots", "total"]:
+            await self._update_stats_channel(stat_type)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+        """Met à jour le compteur de salons quand un salon est créé"""
+        await self._update_stats_channel("channels")
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        """Met à jour le compteur de salons quand un salon est supprimé"""
+        await self._update_stats_channel("channels")
+
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role):
+        """Met à jour le compteur de rôles quand un rôle est créé"""
+        await self._update_stats_channel("roles")
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role):
+        """Met à jour le compteur de rôles quand un rôle est supprimé"""
+        await self._update_stats_channel("roles")
+
+    @commands.command(name="setup_stats")
+    @commands.has_permissions(administrator=True)
+    async def setup_stats(self, ctx):
+        """Crée et configure automatiquement tous les compteurs de statistiques"""
+        try:
+            # Création de la catégorie
+            category = await ctx.guild.create_category(
+                "📊 STATISTIQUES",
+                position=0  # En haut du serveur
+            )
+
+            # Création des salons vocaux pour chaque statistique
+            stats_channels = {
+                "total": "📊 Total : {count}",
+                "members": "👥 Membres : {count}",
+                "bots": "🤖 Bots : {count}",
+                "channels": "📝 Salons : {count}",
+                "roles": "🎭 Rôles : {count}"
+            }
+
+            progress_msg = await ctx.send("⏳ Création des compteurs en cours...")
+
+            for stat_type, format_text in stats_channels.items():
+                # Création du salon vocal
+                channel = await ctx.guild.create_voice_channel(
+                    name=format_text.format(count=0),
+                    category=category
+                )
+                
+                # Configuration du compteur
+                self.config["stats_channels"][stat_type] = channel.id
+                self.config["stats_format"][stat_type] = format_text
+                
+                # Mise à jour immédiate du compteur
+                await self._update_stats_channel(stat_type)
+
+            # Sauvegarde de la configuration
+            save_config(self.config)
+
+            # Désactiver la possibilité de se connecter aux salons vocaux
+            for channel in category.voice_channels:
+                await channel.set_permissions(ctx.guild.default_role, connect=False)
+
+            embed = discord.Embed(
+                title="✅ Compteurs Configurés",
+                description="Les compteurs de statistiques ont été créés et configurés avec succès !",
+                color=discord.Color.green()
+            )
+            embed.add_field(
+                name="Catégorie créée",
+                value=category.name,
+                inline=False
+            )
+            embed.add_field(
+                name="Compteurs créés",
+                value="\n".join(f"• {name}" for name in stats_channels.values()),
+                inline=False
+            )
+            embed.set_footer(text=f"Par {ctx.author}")
+
+            await progress_msg.delete()
+            await ctx.send(embed=embed)
+
+        except discord.Forbidden:
+            await ctx.send("❌ Je n'ai pas les permissions nécessaires pour créer les salons.")
+        except Exception as e:
+            await ctx.send(f"❌ Une erreur est survenue : {str(e)}")
+
+    @commands.command(name="delete_stats")
+    @commands.has_permissions(administrator=True)
+    async def delete_stats(self, ctx):
+        """Supprime tous les compteurs de statistiques"""
+        try:
+            progress_msg = await ctx.send("⏳ Suppression des compteurs en cours...")
+            deleted_channels = []
+
+            # Récupération de la catégorie STATISTIQUES
+            stats_category = None
+            for category in ctx.guild.categories:
+                if category.name.upper() == "📊 STATISTIQUES":
+                    stats_category = category
+                    break
+
+            # Suppression des salons vocaux
+            for stat_type in self.config["stats_channels"]:
+                channel_id = self.config["stats_channels"][stat_type]
+                if channel_id:
+                    channel = ctx.guild.get_channel(channel_id)
+                    if channel:
+                        await channel.delete()
+                        deleted_channels.append(channel.name)
+                    self.config["stats_channels"][stat_type] = None
+
+            # Suppression de la catégorie si elle existe
+            if stats_category:
+                await stats_category.delete()
+
+            # Sauvegarde de la configuration
+            save_config(self.config)
+
+            embed = discord.Embed(
+                title="✅ Compteurs Supprimés",
+                description="Les compteurs de statistiques ont été supprimés avec succès !",
+                color=discord.Color.green()
+            )
+            if deleted_channels:
+                embed.add_field(
+                    name="Salons supprimés",
+                    value="\n".join(f"• {name}" for name in deleted_channels),
+                    inline=False
+                )
+            if stats_category:
+                embed.add_field(
+                    name="Catégorie supprimée",
+                    value=stats_category.name,
+                    inline=False
+                )
+            embed.set_footer(text=f"Par {ctx.author}")
+
+            await progress_msg.delete()
+            await ctx.send(embed=embed)
+
+        except discord.Forbidden:
+            await ctx.send("❌ Je n'ai pas les permissions nécessaires pour supprimer les salons.")
+        except Exception as e:
+            await ctx.send(f"❌ Une erreur est survenue : {str(e)}")
+
+    @commands.command(name="delete_stat")
+    @commands.has_permissions(administrator=True)
+    async def delete_stat(self, ctx, stat_type: str):
+        """Supprime un compteur spécifique
+        Types disponibles: members, bots, total, channels, roles
+        Exemple: ?delete_stat members"""
+        
+        valid_types = ["members", "bots", "total", "channels", "roles"]
+        if stat_type not in valid_types:
+            await ctx.send(f"❌ Type invalide. Types disponibles : {', '.join(valid_types)}")
+            return
+
+        try:
+            # Récupération du salon
+            channel_id = self.config["stats_channels"][stat_type]
+            if not channel_id:
+                await ctx.send(f"❌ Aucun compteur '{stat_type}' n'est configuré.")
+                return
+
+            channel = ctx.guild.get_channel(channel_id)
+            if not channel:
+                await ctx.send(f"❌ Le salon du compteur '{stat_type}' n'a pas été trouvé.")
+                return
+
+            # Suppression du salon
+            channel_name = channel.name
+            await channel.delete()
+            
+            # Mise à jour de la configuration
+            self.config["stats_channels"][stat_type] = None
+            save_config(self.config)
+
+            # Vérification si la catégorie est vide
+            if channel.category and not channel.category.channels:
+                await channel.category.delete()
+                category_deleted = True
+            else:
+                category_deleted = False
+
+            embed = discord.Embed(
+                title="✅ Compteur Supprimé",
+                description=f"Le compteur '{stat_type}' a été supprimé avec succès !",
+                color=discord.Color.green()
+            )
+            embed.add_field(
+                name="Salon supprimé",
+                value=channel_name,
+                inline=False
+            )
+            if category_deleted:
+                embed.add_field(
+                    name="Catégorie supprimée",
+                    value="La catégorie a été supprimée car elle était vide.",
+                    inline=False
+                )
+            embed.set_footer(text=f"Par {ctx.author}")
+            
+            await ctx.send(embed=embed)
+
+        except discord.Forbidden:
+            await ctx.send("❌ Je n'ai pas les permissions nécessaires pour supprimer le salon.")
+        except Exception as e:
+            await ctx.send(f"❌ Une erreur est survenue : {str(e)}")
+
 async def setup(bot):
     await bot.add_cog(ConfigCog(bot)) 
